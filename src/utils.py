@@ -8,7 +8,7 @@ import torch
 from torch import manual_seed
 from torch.backends import cudnn
 
-from qlearning_policies import SigQFunction
+from sigqlearning_policies import SigQFunction
 
 #--------------------------------------------------
 # plot functionalities
