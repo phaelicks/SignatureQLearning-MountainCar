@@ -13,8 +13,8 @@ import torch.optim as optim
 import utils
 
 """
-TODO: check if signature removal work as intended 
-See reference: Lyons, Differential equations driven by rough paths (2004)
+# TODO: find way to compute signature of a path shortened at the beginning via Chen,
+# that takes into account inital basepoint, see method 'shorten_signature' in 'sigqlearning_qfunctions.py'
 """
 
 def train(
@@ -77,7 +77,6 @@ def train(
         initial_tuple = torch.tensor(
             [state], requires_grad=False, dtype=torch.float).unsqueeze(0)
         # compute signature of first tuple
-        ##########history_signature = qfunction.update_signature(initial_tuple)
         history_signature = qfunction.compute_signature(initial_tuple, with_basepoint=True)
         last_tuple = initial_tuple
 
@@ -91,8 +90,7 @@ def train(
         first_obs_value.append(qfunction(first_obs_signature)[0].detach().mean().item())
 
         # run episode
-        for step in range(max_steps):
-            # Choose action according to epsilon-greedy policy
+        for step in range(max_steps): # choose action with epsilon-greedy policy
             Q = qfunction(history_signature)[0] # unwrap from batch dimension
             if np.random.rand(1) < epsilon:
                 action = np.random.randint(0, 3)
@@ -106,7 +104,7 @@ def train(
             state_1 = np.array([position_1, 1 - (step + 1) / max_steps])
             reward = (position_1 - 0.5) / max_steps if position_1 < 0.5 \
                 else 0.05 * (1 - (step + 1) / max_steps) ** 2            
- 
+            episode_reward += reward
 
             # wrap into tensor of shape (1, 1, channels)
             new_tuple = torch.tensor([[state_1]], requires_grad=False, dtype=torch.float)
@@ -120,7 +118,6 @@ def train(
                     torch.tensor(history, requires_grad=False, dtype=torch.float).unsqueeze(0),
                     with_basepoint=False
                 )
-            # TODO: find way to shorten signature via Chen which takes into account inital basepoint
             
             # Create target Q value for training the qfunction
             Q_target = torch.tensor(reward, dtype=torch.float)            
@@ -136,7 +133,6 @@ def train(
             loss = loss / batch_size
             loss.backward()
             batch_count += 1
-            episode_reward += reward
 
             # Calculate loss and update qfunction            
             if batch_count == batch_size or (terminated or truncated):
@@ -151,10 +147,7 @@ def train(
                     if decay_increment == 'success':
                         scheduler.step()
                         epsilon = initial_epsilon * epsilon_decay_lambda(successes)
-                
-                #if episode == 0 or episode % 100 == 0:
-                #    print(" Final Q-values:", Q.detach())
-                    
+                                    
                 # Record history
                 loss_history.append(episode_loss)
                 reward_history.append(episode_reward)
@@ -171,12 +164,6 @@ def train(
         if decay_increment == 'episode':
             scheduler.step()
             epsilon = initial_epsilon * epsilon_decay_lambda(episode)
-
-        # reset learning rate
-        #if episode == episodes // 2:
-        #    optimizer = optim.Adam(qfunction.parameters(), lr=learning_rate)
-        #    lr_decay_lambda = utils.create_decay_schedule(start_value=learning_rate, **learning_rate_decay)
-        #    scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_decay_lambda)
 
         if (episode+1) % 10 == 0:
             qfunction_copy = copy.deepcopy(qfunction.state_dict())
@@ -195,6 +182,7 @@ def train(
         intermediate_policies,
     ]
 
+
     
 def test_multiple_episodes(env, qfunction, episodes, epsilon=0.0):
     reward_history = []
@@ -204,10 +192,6 @@ def test_multiple_episodes(env, qfunction, episodes, epsilon=0.0):
     first_obs_value_history = []
     observation_histories = []
 
-    #pbar = tqdm.trange(episodes, file=sys.stdout)
-    #for episode in pbar:
-    #    pbar.set_description("Episode {}".format(episode))
-    
     for _ in range(episodes):
         reward, success, steps, start, first_obs_value, observations = test_single_episode(
             env, qfunction, epsilon=epsilon
@@ -228,6 +212,8 @@ def test_multiple_episodes(env, qfunction, episodes, epsilon=0.0):
         observation_histories
     ]
 
+
+
 def test_single_episode(env, qfunction, epsilon=0.0, render=False):
     history = []
     max_steps = env.spec.max_episode_steps
@@ -246,7 +232,7 @@ def test_single_episode(env, qfunction, epsilon=0.0, render=False):
     history_signature = qfunction.compute_signature(initial_tuple, with_basepoint=True)
     last_tuple = initial_tuple
 
-    # value of first observation (-0.5, 0) (or (-5.0, 1.))
+    # value of first observation (-0.5, 1)
     first_obs = torch.tensor(
         [[-0.5, 1.]], requires_grad=False, dtype=torch.float).unsqueeze(0)
     first_obs_signature = qfunction.compute_signature(first_obs, with_basepoint=True)
