@@ -234,9 +234,9 @@ def test_single_episode(env, qfunction, epsilon=0.0, render=False):
 
     # value of first observation (-0.5, 1)
     first_obs = torch.tensor(
-        [[-0.5, 1.]], requires_grad=False, dtype=torch.float).unsqueeze(0)
+        [[start_position, 1.]], requires_grad=False, dtype=torch.float).unsqueeze(0)
     first_obs_signature = qfunction.compute_signature(first_obs, with_basepoint=True)
-    first_obs_value = qfunction(first_obs_signature)[0].detach().mean().item()
+    first_obs_value = max(qfunction(first_obs_signature)[0].detach()).item()
 
     
     # run episode
